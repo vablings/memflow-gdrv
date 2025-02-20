@@ -15,8 +15,8 @@ mod handle;
 
 #[repr(u32)]
 enum IoControlCode {
-    MapPhysicalMemory = 0x80102040,
-    UnmapPhysicalMemory = 0x80102044,
+    MapPhysicalMemory = 0xC350200C,
+    UnmapPhysicalMemory = 0xC3502010,
 }
 
 #[derive(Debug, Default)]
@@ -30,15 +30,15 @@ struct PhysicalMemoryMappingRequest {
 }
 
 #[derive(Clone)]
-struct WinIoDriver {
+struct GdrvDriver {
     handle: RawHandle,
 }
 
-impl WinIoDriver {
+impl GdrvDriver {
     fn open() -> Result<Self> {
         let handle = unsafe {
             CreateFileA(
-                s!(r"\\.\WinIo"),
+                s!(r"\\.\GIOV3"),
                 GENERIC_READ.0 | GENERIC_WRITE.0,
                 FILE_SHARE_MODE(0),
                 None,
@@ -54,7 +54,7 @@ impl WinIoDriver {
     }
 }
 
-impl Drop for WinIoDriver {
+impl Drop for GdrvDriver {
     fn drop(&mut self) {
         if self.handle.is_valid() {
             unsafe {
@@ -95,7 +95,7 @@ impl PhysicalMemoryResponse for MapPhysicalMemoryResponse {
     }
 }
 
-impl PhysicalMemory for WinIoDriver {
+impl PhysicalMemory for GdrvDriver {
     fn map_phys_mem(
         &self,
         addr: u64,
@@ -159,11 +159,11 @@ impl PhysicalMemory for WinIoDriver {
     }
 }
 
-#[connector(name = "winio", description = "test")]
+#[connector(name = "gdrv3", description = "test")]
 pub fn create_connector<'a>(_args: &ConnectorArgs) -> memflow::error::Result<VdmConnector<'a>> {
-    let drv = WinIoDriver::open().map_err(|_| {
+    let drv = GdrvDriver::open().map_err(|_| {
         Error(ErrorOrigin::Connector, ErrorKind::Uninitialized)
-            .log_error("Unable to open a handle to the WinIo driver")
+            .log_error("Unable to open a handle to the gdrv3 driver")
     })?;
 
     init_connector(Box::new(drv)).map_err(|_| {
@@ -180,7 +180,7 @@ mod tests {
     fn map_phys_mem() -> memflow_vdm::Result<()> {
         const PAGE_SIZE: usize = 4096;
 
-        let drv = WinIoDriver::open().map_err(memflow_vdm::Error::Windows)?;
+        let drv = GdrvDriver::open().map_err(memflow_vdm::Error::Windows)?;
 
         for addr in (0x0..0x10000u64).step_by(PAGE_SIZE) {
             let mapping = drv.map_phys_mem(addr, PAGE_SIZE)?;

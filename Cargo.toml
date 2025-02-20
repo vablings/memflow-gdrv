@@ -1,11 +1,9 @@
 [package]
-name = "memflow-winio"
+name = "memflow-gdrv3"
 version = "0.1.0"
-authors = ["a2x"]
 edition = "2021"
 readme = "README.md"
-repository = "https://github.com/a2x/memflow-winio"
-license = "MIT"
+
 
 [lib]
 crate-type = ["lib", "cdylib"]
