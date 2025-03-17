@@ -16,25 +16,6 @@ mod handle;
 use aes::cipher::block_padding::Pkcs7;
 use aes::cipher::{BlockEncryptMut, KeyIvInit};
 
-static AES_KEY: &[u8; 16] = b"GIGABYTEPASSWORD";
-static IV: &[u8; 16] = &[0x0; 16];
-
-type Aes128CbcEnc = cbc::Encryptor<aes::Aes128>;
-
-/// Compute the checksum that the gigabyte driver checks for when issuing an IOCTL.
-fn compute_checksum(input_buffer: &mut Vec<u8>) {
-    let mut checksum = 0u8;
-    for byte in input_buffer.iter() {
-        checksum = checksum.wrapping_add(*byte);
-    }
-    input_buffer.push(!checksum);
-}
-
-/// Encrypt the IOCTL with AES_CBC as the driver expects.
-fn aes_encrypt(input_buffer: &mut [u8]) -> Vec<u8> {
-    Aes128CbcEnc::new(AES_KEY.into(), IV.into()).encrypt_padded_vec_mut::<Pkcs7>(input_buffer)
-}
-
 #[repr(u32)]
 enum IoControlCode {
     MapPhysicalMemory = 0xC350200C,
@@ -166,25 +147,26 @@ impl PhysicalMemory for GdrvDriver {
             .downcast_ref::<MapPhysicalMemoryResponse>()
             .unwrap();
 
-        let req = PhysicalMemoryMappingRequest {
-            obj_handle: res.obj_handle,
-            section_handle: res.section_handle,
-            virt_addr: res.virt_addr(),
-            ..Default::default()
-        };
+        let mut input_buffer: Vec<u8> = vec![];
 
-        let mut input_buffer: Vec<u8> = Vec::new();
-        input_buffer.extend_from_slice(res.virt_addr().as_bytes_mut());
+        println!("Unmapping virtual address: {:#x}", res.virt_addr());
+
+        input_buffer.extend_from_slice(&res.virt_addr.to_le_bytes());
+
+        println!("{:?}", input_buffer);
+
+        let mut output_buffer = [0u8; 0];
 
         unsafe {
+            let mut bytes_returned = 0;
             DeviceIoControl(
                 self.handle.handle(),
                 IoControlCode::UnmapPhysicalMemory as _,
-                Some(&req as *const _ as *const _),
-                mem::size_of::<PhysicalMemoryMappingRequest>() as _,
-                None,
-                0,
-                None,
+                Some(input_buffer.as_ptr() as _),
+                input_buffer.len() as _,
+                Some(output_buffer.as_mut_ptr() as _),
+                output_buffer.len() as u32,
+                Some(&mut bytes_returned),
                 None,
             )
             .map_err(memflow_vdm::Error::Windows)
