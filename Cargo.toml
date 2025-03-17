@@ -9,6 +9,8 @@ readme = "README.md"
 crate-type = ["lib", "cdylib"]
 
 [dependencies]
+aes = "*"
+cbc = {version = "*", features = ["alloc"]}
 memflow = { version = "0.2", features = ["plugins"] }
 memflow-vdm = { git = "https://github.com/a2x/memflow-vdm" }
 thiserror = "1.0"
